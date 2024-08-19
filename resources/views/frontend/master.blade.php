@@ -8,6 +8,8 @@
 
     <title>@yield('title') </title>
 
+    @vite(['resources/js/app.js'])
+
     <!-- Google fonts -->
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -69,9 +71,7 @@
 <div id="scroll-top">
     <i class="la la-arrow-up" title="Go top"></i>
 </div>
-<!-- end scroll top -->
-
-
+<!-- end scroll top --> 
 
 <!-- template js files -->
 <script src="{{ asset('frontend/js/jquery-3.4.1.min.js') }}"></script>
@@ -88,6 +88,7 @@
 <script src="{{ asset('frontend/js/plyr.js') }}"></script>
 <script src="{{ asset('frontend/js/jquery.lazy.min.js') }}"></script>
 <script src="{{ asset('frontend/js/main.js') }}"></script>
+
 
 <script>
     var player = new Plyr('#player');
