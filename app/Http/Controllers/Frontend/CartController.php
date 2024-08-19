@@ -24,6 +24,10 @@ use Stripe;
 use App\Models\User;
 use App\Notifications\OrderComplete;
 use Illuminate\Support\Facades\Notification;
+use App\Models\Midtrans;
+// use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class CartController extends Controller
 {
@@ -277,105 +281,150 @@ class CartController extends Controller
     }// End Method 
 
 
-    public function Payment(Request $request){
+    public function Payment(Request $request)
+    {
+        $user = User::where('role', 'instructor')->get();
 
-        $user = User::where('role','instructor')->get();
-
+        // Mendapatkan total amount
         if (Session::has('coupon')) {
-           $total_amount = Session::get('coupon')['total_amount'];
-        }else {
+            $total_amount = Session::get('coupon')['total_amount'];
+        } else {
             $total_amount = round(Cart::total());
         }
 
-            $data = array(); 
-            $data['name'] = $request->name;
-            $data['email'] = $request->email;
-            $data['phone'] = $request->phone;
-            $data['address'] = $request->address;
-            $data['course_title'] = $request->course_title;
-            $cartTotal = Cart::total();
-            $carts = Cart::content();
+        // Data untuk payment
+        $paymentData = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'address' => $request->address,
+            'course_title' => $request->course_title,
+        ];
+
+        $cartTotal = Cart::total();
+        $carts = Cart::content();
+
+        // Handle Midtrans payment
+        $order_id = Str::uuid();
         
+        // Tentukan nilai tukar USD ke IDR
+        $usd_to_idr_rate = 15000; // Misalnya, 1 USD = 15.000 IDR
 
-        if ($request->cash_delivery == 'stripe') {
-            return view('frontend.payment.stripe',compact('data','cartTotal','carts'));
-        }elseif($request->cash_delivery == 'handcash'){ 
+        // Hitung jumlah total dalam IDR
+        $total_amount_idr = $total_amount * $usd_to_idr_rate;
 
-        // Cerate a new Payment Record 
+        // Detail item untuk Midtrans
+        $item_details = [];
+        foreach ($carts as $item) {
+            $item_details[] = [
+                'id' => 'ITEM_' . $item->id, // ID unik item
+                'price' => $item->price * $usd_to_idr_rate, // Harga dalam IDR
+                'quantity' => $item->qty, // Jumlah item
+                'name' => substr($item->name, 0, 50), // Nama item, maksimal 100 karakter
+            ];
+        }
 
-        $data = new Payment();
-        $data->name = $request->name;
-        $data->email = $request->email;
-        $data->phone = $request->phone;
-        $data->address = $request->address;
-        $data->cash_delivery = $request->cash_delivery;
-        $data->total_amount = $total_amount;
-        $data->payment_type = 'Direct Payment';
-        
-        $data->invoice_no = 'EOS' . mt_rand(10000000, 99999999);
-        $data->order_date = Carbon::now()->format('d F Y');
-        $data->order_month = Carbon::now()->format('F');
-        $data->order_year = Carbon::now()->format('Y');
-        $data->status = 'pending';
-        $data->created_at = Carbon::now(); 
-        $data->save();
+        // Hitung total dari item_details
+        $calculated_total = array_sum(array_map(function($item) {
+            return $item['price'] * $item['quantity'];
+        }, $item_details));
 
+        // Parameter untuk Midtrans
+        $params = [
+            'transaction_details' => [
+                'order_id' => $order_id,
+                'gross_amount' => $calculated_total, // Jumlah total dalam IDR, sesuai dengan item_details
+            ],
+            'item_details' => $item_details,
+            'customer_details' => [
+                'first_name' => $request->name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'billing_address' => [
+                    'first_name' => $request->name,
+                    'email' => $request->email,
+                    'phone' => $request->phone,
+                    'address' => $request->address,
+                    // Tambahkan detail alamat lain jika diperlukan
+                ],
+                'shipping_address' => [ // Opsional, jika Anda memerlukan alamat pengiriman
+                    'first_name' => $request->name,
+                    'address' => $request->address,
+                    // Tambahkan detail alamat lain jika diperlukan
+                ],
+            ],
+            'enabled_payments' => ['bca_va', 'credit_card', 'bri_va'], // Metode pem    bayaran yang diaktifkan
+        ];
 
-       foreach ($request->course_title as $key => $course_title) {
-        
-            $existingOrder = Order::where('user_id',Auth::user()->id)->where('course_id',$request->course_id[$key])->first();
+        // Authorization header menggunakan base64 encoding dari server key Midtrans
+        $auth = base64_encode(env('MIDTRANS_SERVER_KEY'));
+
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Basic ' . $auth,
+        ])->post('https://app.sandbox.midtrans.com/snap/v1/transactions', $params);
+
+        $responseBody = json_decode($response->body());
+
+        // return view(dd($responseBody));
+
+        // Simpan data pembayaran ke database
+        $payment = new Midtrans();
+        $payment->name = $request->name;
+        $payment->email = $request->email;
+        $payment->phone = $request->phone;
+        $payment->address = $request->address;
+        $payment->total_amount = $total_amount_idr;
+        $payment->payment_type = 'Midtrans';
+        $payment->invoice_no = $order_id;
+        $payment->order_date = now()->format('Y-m-d');
+        $payment->order_month = now()->format('m');
+        $payment->order_year = now()->format('Y');
+        $payment->status = 'pending';
+        $payment->save();
+
+        foreach ($request->course_title as $key => $course_title) {
+            $existingOrder = Order::where('user_id', Auth::user()->id)
+                                  ->where('course_id', $request->course_id[$key])
+                                  ->first();
 
             if ($existingOrder) {
-
-                $notification = array(
+                $notification = [
                     'message' => 'You Have already enrolled in this course',
                     'alert-type' => 'error'
-                );
-                return redirect()->back()->with($notification); 
-            } // end if 
+                ];
+                return redirect()->back()->with($notification);
+            }
 
             $order = new Order();
-            $order->payment_id = $data->id;
+            $order->payment_id = $payment->id;
             $order->user_id = Auth::user()->id;
             $order->course_id = $request->course_id[$key];
             $order->instructor_id = $request->instructor_id[$key];
             $order->course_title = $course_title;
             $order->price = $request->price[$key];
             $order->save();
+        }
 
-           } // end foreach 
+        $request->session()->forget('cart');
 
-           $request->session()->forget('cart');
+        // Send email to student
+        $sendmail = Midtrans::find($payment->id);
+        $mailData = [
+            'invoice_no' => $sendmail->invoice_no,
+            'amount' => $total_amount,
+            'name' => $sendmail->name,
+            'email' => $sendmail->email,
+        ];
+        Mail::to($request->email)->send(new Orderconfirm($mailData));
 
-           $paymentId = $data->id;
+        // Send notification
+        Notification::send($user, new OrderComplete($request->name));
 
-           /// Start Send email to student ///
-           $sendmail = Payment::find($paymentId);
-           $data = [
-                'invoice_no' => $sendmail->invoice_no,
-                'amount' => $total_amount,
-                'name' => $sendmail->name,
-                'email' => $sendmail->email,
-           ];
+        // Arahkan pengguna ke halaman Midtrans
+        return redirect($responseBody->redirect_url);
+    }
 
-           Mail::to($request->email)->send(new Orderconfirm($data)); 
-           /// End Send email to student /// 
- 
-           /// Send Notification 
-           Notification::send($user, new OrderComplete($request->name));
-
-
-
-           $notification = array(
-            'message' => 'Cash Payment Submit Successfully',
-            'alert-type' => 'success'
-        );
-        return redirect()->route('index')->with($notification); 
-
-        } // End Elseif 
-           
-       
-    }// End Method 
 
 
     public function StripeOrder(Request $request){

@@ -1,5 +1,7 @@
 @extends('frontend.master')
 @section('home') 
+<script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="YOUR_CLIENT_KEY"></script>
+
 <!-- ================================
     START BREADCRUMB AREA
 ================================= -->
@@ -64,9 +66,6 @@
         </div>
     </div><!-- end input-box -->
     
-    
-        
-
                     </div><!-- end card-body -->
                 </div><!-- end card -->
 <div class="card card-item">
@@ -80,10 +79,10 @@
                     <label for="bankTransfer">Direct Payment</label>
                 </div>
  
-                <div class="payment-tab-toggle">
+                {{-- <div class="payment-tab-toggle">
                     <input checked="" id="bankTransfer" name="cash_delivery" type="radio" value="stripe">
                     <label for="bankTransfer">Stripe Payment</label>
-                </div>
+                </div> --}}
                
             </div><!-- end payment-tab -->
         
@@ -119,8 +118,6 @@
         </div>
     </div><!-- end media -->
     @endforeach     
-                         
-
 
                         </div><!-- end order-details-lists -->
                         <a href="{{ route('mycart') }}" class="btn-text"><i class="la la-edit mr-1"></i>Edit</a>
@@ -168,16 +165,10 @@
         </ul>
                
            @endif            
-                       
-                        
-
-
-
-
                         <div class="btn-box border-top border-top-gray pt-3">
                             <p class="fs-14 lh-22 mb-2">Aduca is required by law to collect applicable transaction taxes for purchases made in certain tax jurisdictions.</p>
                             <p class="fs-14 lh-22 mb-3">By completing your purchase you agree to these <a href="#" class="text-color hover-underline">Terms of Service.</a></p>
-                            <button type="submit" class="btn theme-btn w-100">Proceed <i class="la la-arrow-right icon ml-1"></i></button>
+                            <button type="submit" class="btn theme-btn w-100">Bayar <i class="la la-arrow-right icon ml-1"></i></button>
                             
                         </div>
                     </div><!-- end card-body -->

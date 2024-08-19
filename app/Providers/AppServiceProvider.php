@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use App\Models\SmtpSetting;
-use Config;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,29 +23,32 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-       if (\Schema::hasTable('smtp_settings')) {
-           $smtpsetting = SmtpSetting::first();
+        // // Memastikan skema URL HTTPS jika dalam lingkungan lokal
+        // if (config('app.env') === 'local') {
+        //     URL::forceScheme('https');
+        // }
 
-           if ($smtpsetting) {
-           $data = [
-            'driver' => $smtpsetting->mailer, 
-            'host' => $smtpsetting->host,
-            'port' => $smtpsetting->port,
-            'username' => $smtpsetting->username,
-            'password' => $smtpsetting->password,
-            'encryption' => $smtpsetting->encryption,
-            'from' => [
-                'address' => $smtpsetting->from_address,
-                'name' => 'Easycourselms'
-            ]
-             
-            ];
-            Config::set('mail',$data);
-           }
-       } // end if
-        
+        // Memeriksa apakah tabel 'smtp_settings' ada
+        if (Schema::hasTable('smtp_settings')) {
+            $smtpSetting = SmtpSetting::first();
 
+            if ($smtpSetting) {
+                $mailConfig = [
+                    'driver' => $smtpSetting->mailer,
+                    'host' => $smtpSetting->host,
+                    'port' => $smtpSetting->port,
+                    'username' => $smtpSetting->username,
+                    'password' => $smtpSetting->password,
+                    'encryption' => $smtpSetting->encryption,
+                    'from' => [
+                        'address' => $smtpSetting->from_address,
+                        'name' => 'Easycourselms'
+                    ]
+                ];
 
-
+                // Mengatur konfigurasi mail secara dinamis
+                Config::set('mail', $mailConfig);
+            }
+        }
     }
 }

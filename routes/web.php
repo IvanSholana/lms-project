@@ -20,6 +20,7 @@ use App\Http\Controllers\Backend\ReviewController;
 use App\Http\Controllers\Backend\ActiveUserController;
 use App\Http\Controllers\Backend\BlogController;
 use App\Http\Controllers\Backend\RoleController;
+use App\Http\Controllers\MidtransController;
 
 /*
 |--------------------------------------------------------------------------
